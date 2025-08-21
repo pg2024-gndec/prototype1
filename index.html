@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FitPlay - AI Sports & Fitness Coach</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow-x: hidden;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px;
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #FFD700, #FF6B6B);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .main-area {
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .stats-card {
+            background: rgba(255,255,255,0.15);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            text-align: center;
+        }
+
+        .video-container {
+            position: relative;
+            border-radius: 15px;
+            overflow: hidden;
+            background: #000;
+            margin-bottom: 20px;
+        }
+
+        #videoElement {
+            width: 100%;
+            height: 400px;
+            object-fit: cover;
+        }
+
+        #output_canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #FF6B6B, #4ECDC4);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .exercise-modes {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .mode-btn {
+            padding: 15px;
+            background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 15px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(45deg, #FFD700, #FF6B6B);
+            border-color: #FFD700;
+        }
+
+        .feedback-area {
+            background: rgba(0,0,0,0.3);
+            border-radius: 15px;
+            padding: 20px;
+            min-height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .feedback-text {
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .feedback-correct {
+            color: #4CAF50;
+        }
+
+        .feedback-incorrect {
+            color: #FF5722;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #4CAF50, #8BC34A);
+            transition: width 0.3s ease;
+        }
+
+        .leaderboard {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 15px;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            background: linear-gradient(45deg, #FFD700, #FFA000);
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #333;
+            margin: 2px;
+        }
+
+        .pose-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 60%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            80% { transform: translateY(-5px); }
+        }
+
+        .bounce {
+            animation: bounce 2s infinite;
+        }
+
+        .loading-spinner {
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 3px solid #fff;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏆 FitPlay</h1>
+        <p>AI-Powered Sports & Fitness Coach</p>
+    </div>
+
+    <div class="container">
+        <div class="main-area">
+            <div class="exercise-modes">
+                <div class="mode-btn active" onclick="setMode('squat')">
+                    🏋️ Squat Training
+                </div>
+                <div class="mode-btn" onclick="setMode('pushup')">
+                    💪 Push-Up Form
+                </div>
+            </div>
+
+            <div class="video-container">
+                <video id="videoElement" autoplay muted playsinline></video>
+                <canvas id="output_canvas"></canvas>
+                <div class="pose-indicator" id="poseIndicator">
+                    Initializing AI...
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-primary" onclick="startCamera()" id="startBtn">
+                    📷 Start Camera
+                </button>
+                <button class="btn btn-secondary" onclick="stopCamera()" id="stopBtn">
+                    ⏹️ Stop
+                </button>
+            </div>
+
+            <div class="feedback-area" id="feedbackArea">
+                <div class="feedback-text" id="feedbackText">
+                    Select a training mode and start your camera to begin! 🚀
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="stats-card">
+                <h3>🎯 Your Stats</h3>
+                <div style="font-size: 2em; color: #FFD700; margin: 10px 0;" id="score">0</div>
+                <p>Total Points</p>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressBar" style="width: 0%"></div>
+                </div>
+                <p>Level Progress</p>
+            </div>
+
+            <div class="stats-card">
+                <h3>🏅 Achievements</h3>
+                <div id="badges">
+                    <span class="badge">Beginner</span>
+                </div>
+                <p style="margin-top: 10px;">Reps Today: <span id="repsCount">0</span></p>
+                <p>Streak: <span id="streak">1</span> days</p>
+            </div>
+
+            <div class="stats-card">
+                <h3>🏆 Leaderboard</h3>
+                <div class="leaderboard">
+                    <div class="leaderboard-item">
+                        <span>🥇 Alex</span>
+                        <span>2,450</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span>🥈 Sarah</span>
+                        <span>2,100</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span>🥉 You</span>
+                        <span id="yourScore">0</span>
+                    </div>
+                    <div class="leaderboard-item">
+                        <span>4️⃣ Mike</span>
+                        <span>1,200</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pose;
+        let camera;
+        let currentMode = 'squat';
+        let score = 0;
+        let reps = 0;
+        let streak = 1;
+        let isInCorrectPosition = false;
+        let lastFeedbackTime = 0;
+        let squatState = 'standing'; // standing, descending, bottom, ascending
+
+        const videoElement = document.getElementById('videoElement');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+
+        // Initialize MediaPipe Pose
+        function initializePose() {
+            pose = new Pose({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+                }
+            });
+
+            pose.setOptions({
+                modelComplexity: 1,
+                smoothLandmarks: true,
+                enableSegmentation: true,
+                smoothSegmentation: true,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            pose.onResults(onResults);
+        }
+
+        function onResults(results) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            // Draw the image
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            
+            if (results.poseLandmarks) {
+                // Draw pose landmarks
+                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+                drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#FF0000', lineWidth: 1});
+                
+                // Analyze pose based on current mode
+                if (currentMode === 'squat') {
+                    analyzeSquat(results.poseLandmarks);
+                } else if (currentMode === 'pushup') {
+                    analyzePushUp(results.poseLandmarks);
+                }
+            }
+            
+            canvasCtx.restore();
+            
+            // Update pose indicator
+            document.getElementById('poseIndicator').textContent = 
+                results.poseLandmarks ? '🟢 Pose Detected' : '🔴 No Pose Detected';
+        }
+
+        function analyzeSquat(landmarks) {
+            const leftHip = landmarks[23];
+            const leftKnee = landmarks[25];
+            const leftAnkle = landmarks[27];
+            const rightHip = landmarks[24];
+            const rightKnee = landmarks[26];
+            const rightAnkle = landmarks[28];
+            
+            // Calculate knee angle
+            const leftKneeAngle = calculateAngle(leftHip, leftKnee, leftAnkle);
+            const rightKneeAngle = calculateAngle(rightHip, rightKnee, rightAnkle);
+            const avgKneeAngle = (leftKneeAngle + rightKneeAngle) / 2;
+            
+            const currentTime = Date.now();
+            
+            // Squat state machine
+            if (squatState === 'standing' && avgKneeAngle < 140) {
+                squatState = 'descending';
+            } else if (squatState === 'descending' && avgKneeAngle < 90) {
+                squatState = 'bottom';
+                giveFeedback('Great depth! Now push up! 💪', 'correct');
+            } else if (squatState === 'bottom' && avgKneeAngle > 120) {
+                squatState = 'ascending';
+            } else if (squatState === 'ascending' && avgKneeAngle > 160) {
+                squatState = 'standing';
+                completeRep();
+            }
+            
+            // Real-time form feedback
+            if (currentTime - lastFeedbackTime > 2000) {
+                if (avgKneeAngle < 160 && avgKneeAngle > 90) {
+                    if (avgKneeAngle > 120) {
+                        giveFeedback('Go deeper! Squat lower! 📉', 'incorrect');
+                    } else {
+                        giveFeedback('Perfect form! Keep it up! ✅', 'correct');
+                    }
+                } else if (avgKneeAngle <= 90) {
+                    giveFeedback('Excellent depth! 🎯', 'correct');
+                }
+                lastFeedbackTime = currentTime;
+            }
+        }
+
+        function analyzePushUp(landmarks) {
+            const leftShoulder = landmarks[11];
+            const leftElbow = landmarks[13];
+            const leftWrist = landmarks[15];
+            const rightShoulder = landmarks[12];
+            const rightElbow = landmarks[14];
+            const rightWrist = landmarks[16];
+            
+            const leftElbowAngle = calculateAngle(leftShoulder, leftElbow, leftWrist);
+            const rightElbowAngle = calculateAngle(rightShoulder, rightElbow, rightWrist);
+            const avgElbowAngle = (leftElbowAngle + rightElbowAngle) / 2;
+            
+            const currentTime = Date.now();
+            
+            if (currentTime - lastFeedbackTime > 2000) {
+                if (avgElbowAngle < 90) {
+                    giveFeedback('Go lower! Full range of motion! 📉', 'incorrect');
+                } else if (avgElbowAngle > 160) {
+                    giveFeedback('Perfect extension! 💪', 'correct');
+                    addScore(5);
+                } else {
+                    giveFeedback('Good form! Keep going! ✅', 'correct');
+                }
+                lastFeedbackTime = currentTime;
+            }
+        }
+
+        function calculateAngle(a, b, c) {
+            const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+            let angle = Math.abs(radians * 180.0 / Math.PI);
+            if (angle > 180.0) {
+                angle = 360 - angle;
+            }
+            return angle;
+        }
+
+        function completeRep() {
+            reps++;
+            addScore(10);
+            giveFeedback(`Rep ${reps} complete! +10 points! 🎉`, 'correct');
+            document.getElementById('repsCount').textContent = reps;
+            
+            // Check for achievements
+            if (reps === 5 && !document.querySelector('.badge:contains("5 Reps")')) {
+                addBadge('First 5!');
+            }
+            if (reps === 10) {
+                addBadge('10 Rep Hero!');
+            }
+            if (reps === 25) {
+                addBadge('Quarter Century!');
+            }
+        }
+
+        function addScore(points) {
+            score += points;
+            document.getElementById('score').textContent = score;
+            document.getElementById('yourScore').textContent = score;
+            
+            // Update progress bar (every 100 points = 1 level)
+            const progress = (score % 100);
+            document.getElementById('progressBar').style.width = progress + '%';
+            
+            // Add bounce effect
+            document.getElementById('score').classList.add('bounce');
+            setTimeout(() => {
+                document.getElementById('score').classList.remove('bounce');
+            }, 2000);
+        }
+
+        function addBadge(badgeName) {
+            const badgesContainer = document.getElementById('badges');
+            const badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.textContent = badgeName;
+            badgesContainer.appendChild(badge);
+        }
+
+        function giveFeedback(message, type) {
+            const feedbackText = document.getElementById('feedbackText');
+            feedbackText.textContent = message;
+            feedbackText.className = `feedback-text feedback-${type}`;
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Reset state
+            squatState = 'standing';
+            
+            if (mode === 'squat') {
+                giveFeedback('Squat mode activated! Stand with feet shoulder-width apart! 🏋️', 'correct');
+            } else if (mode === 'pushup') {
+                giveFeedback('Push-up mode activated! Get into plank position! 💪', 'correct');
+            }
+        }
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480 }
+                });
+                
+                videoElement.srcObject = stream;
+                
+                camera = new Camera(videoElement, {
+                    onFrame: async () => {
+                        await pose.send({image: videoElement});
+                    },
+                    width: 640,
+                    height: 480
+                });
+                
+                camera.start();
+                
+                // Resize canvas
+                canvasElement.width = 640;
+                canvasElement.height = 480;
+                
+                document.getElementById('startBtn').textContent = '📷 Camera Active';
+                document.getElementById('startBtn').disabled = true;
+                
+                giveFeedback('Camera started! Begin your workout! 🚀', 'correct');
+                
+            } catch (error) {
+                console.error('Error starting camera:', error);
+                giveFeedback('Camera access denied. Please allow camera permissions! ❌', 'incorrect');
+            }
+        }
+
+        function stopCamera() {
+            if (camera) {
+                camera.stop();
+                camera = null;
+            }
+            
+            if (videoElement.srcObject) {
+                videoElement.srcObject.getTracks().forEach(track => track.stop());
+                videoElement.srcObject = null;
+            }
+            
+            document.getElementById('startBtn').textContent = '📷 Start Camera';
+            document.getElementById('startBtn').disabled = false;
+            
+            giveFeedback('Camera stopped. Great workout! 🎯', 'correct');
+        }
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            initializePose();
+            giveFeedback('Welcome to FitPlay! Select a mode and start your camera to begin! 🏆', 'correct');
+        });
+
+        // Add some demo achievements over time
+        setTimeout(() => {
+            if (score > 0) {
+                addBadge('Quick Starter');
+            }
+        }, 10000);
+    </script>
+</body>
+</html>
